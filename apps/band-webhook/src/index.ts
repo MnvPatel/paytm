@@ -3,7 +3,7 @@ import db from "@repo/db/client";
 
 const app = express();
 
-app.post("/hdfcwebhook", (req, res) => {
+app.post("/hdfcwebhook", async (req, res) => {
   //add zod for validation
   const paymentInformation = {
     token: req.body.token,
@@ -11,24 +11,27 @@ app.post("/hdfcwebhook", (req, res) => {
     amount: req.body.amount,
   };
   try {
-    db.balance.update({
-      where: {
-        userId: paymentInformation.userId,
-      },
-      data: {
-        amount: {
-          increment: paymentInformation.amount,
-        },
-      },
-    });
-    db.onRampTransactions.update({
-      where: {
-        token: paymentInformation.token,
-      },
-      data: {
-        status: "Success",
-      },
-    });
+    await db.$transaction([
+            db.balance.updateMany({
+                where: {
+                    userId: Number(paymentInformation.userId)
+                },
+                data: {
+                    amount: {
+                        // You can also get this from your DB
+                        increment: Number(paymentInformation.amount)
+                    }
+                }
+            }),
+            db.onRampTransactions.updateMany({
+                where: {
+                    token: paymentInformation.token
+                }, 
+                data: {
+                    status: "Success",
+                }
+            })
+        ]);
     res.json({
       message: "Captured",
     });
@@ -39,3 +42,5 @@ app.post("/hdfcwebhook", (req, res) => {
     });
   }
 });
+
+app.listen(3003);
